@@ -107,6 +107,9 @@ def bench(servers, concurrencies, reps, max_tokens):
         client.run(s.url, 4, 16, max_tokens, s.extra)  # warm-up: weights paged in, buffers sized
         client.run(s.url, 1, 2, max_tokens, s.extra)
         results[s.name]["texts"] = client.run(s.url, 1, 8, max_tokens, s.extra, keep_texts=True)["texts"]
+        batched = client.run(s.url, 8, 8, max_tokens, s.extra, keep_texts=True)["texts"]
+        # The same prompts decoded side by side must give the same greedy answers as one at a time.
+        results[s.name]["batched_same"] = sum(1 for k, v in results[s.name]["texts"].items() if batched.get(k) == v)
     for c in concurrencies:
         total = max(16, 8 * c)
         for s in servers:
@@ -149,6 +152,8 @@ def table(results):
     lines += ["", "| server | RSS idle MB | RSS peak MB | RSS end MB |", "|---|---|---|---|"]
     for name, data in results.items():
         lines.append("| %s | %.0f | %.0f | %.0f |" % (name, data["rss_idle_mb"], data["rss_peak_mb"], data["rss_end_mb"]))
+    lines += [""] + ["%s: %d of 8 answers at concurrency 8 equal the ones at concurrency 1."
+                     % (n, d["batched_same"]) for n, d in results.items()]
     names = list(results)
     if len(names) == 2:
         a, b = (results[n]["texts"] for n in names)

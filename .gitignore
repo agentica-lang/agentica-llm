@@ -1,3 +1,5 @@
 deps/
 *.agcb
 native/linux/
+__pycache__/
+bench/results/*.log
