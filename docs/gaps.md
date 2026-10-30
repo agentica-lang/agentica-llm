@@ -1,6 +1,11 @@
 # Gaps found in Agentica, Bond and the FFI
 
-Each is a short bullet with a repro; the numbers are for Agentica 0.18.0.
+Each is a short bullet with a repro. The streaming work (Agentica 0.19.0-beta.1, Bond 0.2.0) re-checked `Int` `min`/`max`
+and `case` as an expression, which still fail, and added the hex-literal and channel bullets; the other repros are
+from Agentica 0.18.0 and were not rerun.
+
+Closed since the first version: Bond had no streaming body (Bond 0.2.0 has `Bond.stream` and `Bond.sse`, on the
+streaming bodies of `std/http`) and `Bond.json` encoded a struct twice (Bond 0.2.0 has `Bond.json_as` with a codec).
 
 - **A project `[native]` file must be under `native/`.** `[native.llama]` with `linux = { file = "deps/llama.cpp/libllama.so.0" }`
   fails: `PKG-MANIFEST-INVALID ... not a native file ... a native file is a path in the native/ folder of the package`.
@@ -25,12 +30,14 @@ Each is a short bullet with a repro; the numbers are for Agentica 0.18.0.
 - **No bulk write of a small-int list into native memory.** Only `put_array_of_int32/int64/float32/float64`
   exist; the `int8` `logits` array of `llama_batch` goes through `Bytes.from_list` and `put_bytes`, and the
   `seq_id` pointer-to-int cells need a `get_pointer` and a `put_int32` per token.
-- **Bond: no streaming body.** `Bond.text`, `Bond.json` and `Conn.response_body` are whole strings, so SSE needs
-  `std/http` first (#803).
-- **Bond: `Bond.json` takes a `Json`, not a struct**, so `Bond.json(conn, 200, JSON.from(response))` encodes the
-  value twice (`JSON.from`, then `JSON.encode` inside). `Bond.header(Bond.text(conn, 200, JSON.encode(response)),
-  "content-type", "application/json")` is the way to skip one step; a `Bond.json` that took the encoded string or any
-  encodable value would remove it.
+- **No hex literals.** `puts(0x80)` is `PARSE-UNEXPECTED-TOKEN: expected ")", found "x80"`, so the UTF-8 lead-byte
+  checks in `utf8_complete` (`src/engine.agc`) are written `128`, `192`, `224` and `240`.
+- **A channel cannot say "the reader left" without a send.** `closed?` is `true` only once the channel is closed *and
+  drained*, and a failed `send` is `error("channel: closed")` or `error("channel: timed out")` (full), which the
+  reference says not to match on. The engine sends with a timeout of 0 and treats any failure as "stop this sequence",
+  which is right for both, but it learns that the client left only at the next token, and a request whose client leaves
+  before its first token (the route is blocked in `recv`) still runs until that token. A `Channel.closed_by_reader?` or
+  a send error that is an enum would let the engine tell the cases apart.
 - **Top-level `server.agc` has no flag parser.** Every program that wants `--port N` writes the same loop over
   `System.args()` (`parse`/`apply` in `server.agc`); a small `std/args` would remove it.
 - **Different batch shapes give different greedy text** (not an Agentica bug; llama.cpp float order). It is listed so

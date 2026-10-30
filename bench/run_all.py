@@ -109,6 +109,37 @@ def busy_cores(window_s=4.0):
     return (busy1 - busy0) / max(1, total1 - total0) * (os.cpu_count() or 1)
 
 
+def system_jiffies():
+    """(busy, total) CPU jiffies of the whole machine."""
+    with open("/proc/stat") as f:
+        fields = [int(x) for x in f.readline().split()[1:]]
+    return sum(fields) - fields[3] - fields[4], sum(fields)
+
+
+def process_jiffies(pid):
+    """User plus system jiffies of one process, with its threads (fields 14 and 15 of /proc/PID/stat)."""
+    with open("/proc/%d/stat" % pid) as f:
+        rest = f.read().rsplit(")", 1)[1].split()
+    return int(rest[11]) + int(rest[12])
+
+
+def run_measured(server, concurrency, total, max_tokens, stream):
+    """One client run, plus the cores the *neighbours* used during it.
+
+    The machine's busy cores over the run, minus what the server and this client process used. A check before the
+    run does not see a neighbour that starts during it, and a spinning ggml thread loses a lot to one.
+    """
+    tick = os.sysconf("SC_CLK_TCK")
+    busy0, total0 = system_jiffies()
+    server0 = process_jiffies(server.pid)
+    client0 = sum(os.times()[:2])
+    result = client.run(server.url, concurrency, total, max_tokens, server.extra, stream=stream)
+    busy1, total1 = system_jiffies()
+    own = (process_jiffies(server.pid) - server0) + (sum(os.times()[:2]) - client0) * tick
+    result["neighbour_cores_during"] = max(0.0, (busy1 - busy0 - own) / max(1, total1 - total0) * (os.cpu_count() or 1))
+    return result
+
+
 def wait_quiet(max_busy, patience_s):
     """Waits until the neighbours use fewer than `max_busy` cores, at most `patience_s`.
 
@@ -122,7 +153,7 @@ def wait_quiet(max_busy, patience_s):
     return busy
 
 
-def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s, stream=False):
+def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s, stream=False, max_during=1e9, attempts=1):
     """Runs the servers alternately, rep by rep, so a noisy machine hurts both the same."""
     for s in servers:
         wait_ready(s.port, s.proc)
@@ -141,12 +172,24 @@ def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s, stream
         for rep in range(reps):
             order = servers if rep % 2 == 0 else servers[::-1]
             for s in order:
-                before = wait_quiet(max_load, patience_s)
-                r = client.run(s.url, c, total, max_tokens, s.extra, stream=stream)
-                r["busy_cores_before"] = before
-                results[s.name]["runs"][c].append(r)
-                print("%s c=%d rep=%d: %.1f tok/s, ttft p50 %.2f s, neighbours %.1f cores"
-                      % (s.name, c, rep, r["gen_tok_per_s"], r.get("ttft_p50_s", 0), before), flush=True)
+                # A run during which the neighbours used more than `max_during` cores is thrown away and redone, up to
+                # `attempts` times; then the quietest attempt stays. The thrown-away ones are kept in the JSON.
+                tried = []
+                for attempt in range(attempts):
+                    before = wait_quiet(max_load, patience_s)
+                    r = run_measured(s, c, total, max_tokens, stream)
+                    r["busy_cores_before"] = before
+                    tried.append(r)
+                    print("%s c=%d rep=%d try=%d: %.1f tok/s, ttft p50 %.2f s, neighbours %.1f cores before, %.1f during"
+                          % (s.name, c, rep, attempt, r["gen_tok_per_s"], r.get("ttft_p50_s", 0), before,
+                             r["neighbour_cores_during"]), flush=True)
+                    if r["neighbour_cores_during"] <= max_during:
+                        break
+                best = min(tried, key=lambda t: t["neighbour_cores_during"]) if tried[-1]["neighbour_cores_during"] > max_during else tried[-1]
+                best["attempts"] = len(tried)
+                best["discarded"] = [{"gen_tok_per_s": t["gen_tok_per_s"], "neighbour_cores_during": t["neighbour_cores_during"]}
+                                     for t in tried if t is not best]
+                results[s.name]["runs"][c].append(best)
     for s in servers:
         results[s.name]["rss_peak_mb"] = rss_kb(s.pid, "VmHWM") / 1024
         results[s.name]["rss_end_mb"] = rss_kb(s.pid, "VmRSS") / 1024
@@ -196,6 +239,9 @@ def main():
     parser.add_argument("--max-tokens", type=int, default=64)
     parser.add_argument("--max-load", type=float, default=1e9, help="wait until the neighbours use fewer cores than this")
     parser.add_argument("--patience", type=int, default=600, help="seconds to wait for a quiet machine per run")
+    parser.add_argument("--max-load-during", type=float, default=1e9,
+                        help="redo a run when the neighbours used more cores than this while it ran")
+    parser.add_argument("--attempts", type=int, default=1, help="tries per run for --max-load-during")
     parser.add_argument("--stream", action="store_true", help='every request says "stream": true; adds time to first token')
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--out", default=os.path.join(ROOT, "bench", "results", "latest.json"))
@@ -211,13 +257,15 @@ def main():
             port = args.port + i
             cmd, env = commands(args.agentica, port, args.threads, args.ctx, args.slots)[name]
             servers.append(Server(name, cmd, env, port, log_dir))
-        results = bench(servers, concurrencies, args.reps, args.max_tokens, args.max_load, args.patience, args.stream)
+        results = bench(servers, concurrencies, args.reps, args.max_tokens, args.max_load, args.patience, args.stream,
+                        args.max_load_during, args.attempts)
     finally:
         for s in servers:
             s.stop()
     with open(args.out, "w") as f:
         json.dump({"threads": args.threads, "ctx": args.ctx, "slots": args.slots, "max_tokens": args.max_tokens,
-                   "stream": args.stream, "results": results}, f, indent=1)
+                   "stream": args.stream, "max_load": args.max_load, "max_load_during": args.max_load_during,
+                   "results": results}, f, indent=1)
     print(table(results))
 
 

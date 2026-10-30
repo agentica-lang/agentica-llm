@@ -16,7 +16,8 @@ agentica install
 - [scripts/fetch-headers.sh](../scripts/fetch-headers.sh): `llama.h` of the same tag, only to compare the struct
   layouts in `src/llama.agc`. The release archive ships no headers, so the struct layouts were copied from `llama.h` at
   tag `b12012`; a wrong field list is undefined behavior, so re-check them if you change the tag.
-- `agentica install`: Bond (git dependency, pinned by commit).
+- `agentica install`: Bond 0.2.0 (git dependency, pinned by tag in `agentica.toml` and by commit and hash in
+  `agentica.lock`). It needs Agentica 0.19.0-beta.1 or later.
 
 Nothing under `deps/` is committed.
 
@@ -25,6 +26,16 @@ Nothing under `deps/` is committed.
 ```sh
 agentica server.agc --port 8080 --threads 4 --ctx 8192 --parallel 8
 ```
+
+Add `"stream": true` to get server-sent events, one `data:` chunk per piece of text and `data: [DONE]` at the end
+(`-N` keeps curl from buffering):
+
+```sh
+curl -N localhost:8080/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Say hello."}],"max_tokens":32,"stream":true}'
+```
+
+`"stream_options": {"include_usage": true}` adds a last chunk with the token counts.
 
 Options: `--model PATH --host H --port N --threads N --ctx N --parallel N --batch N --backends DIR --stats on`.
 
@@ -37,3 +48,6 @@ Agentica.
 ```sh
 AGENTICA=/path/to/agentica python3 -m unittest tests.test_api
 ```
+
+It starts the server with 4 slots and checks the routes, the streamed chunks (they add up to the non-streaming greedy
+answer, UTF-8 stays whole, the stream ends with `[DONE]`) and that clients that leave mid-stream free their slots.
