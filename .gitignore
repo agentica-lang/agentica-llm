@@ -3,3 +3,4 @@ deps/
 native/linux/
 __pycache__/
 bench/results/*.log
+tests/server.log
