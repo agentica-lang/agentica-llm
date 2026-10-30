@@ -21,7 +21,7 @@ import client  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL = os.path.join(ROOT, "deps", "qwen2.5-0.5b-instruct-q4_k_m.gguf")
 LLAMA_DIR = os.path.join(ROOT, "deps", "llama.cpp")
-SCOPE = ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=8G", "-p", "MemorySwapMax=0", "--"]
+SCOPE = ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=6G", "-p", "MemorySwapMax=0", "--"]
 
 
 def commands(agentica, port, threads, ctx, slots):
@@ -122,16 +122,16 @@ def wait_quiet(max_busy, patience_s):
     return busy
 
 
-def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s):
+def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s, stream=False):
     """Runs the servers alternately, rep by rep, so a noisy machine hurts both the same."""
     for s in servers:
         wait_ready(s.port, s.proc)
     results = {s.name: {"runs": {}, "rss_idle_mb": rss_kb(s.pid, "VmRSS") / 1024} for s in servers}
     for s in servers:
-        client.run(s.url, 4, 16, max_tokens, s.extra)  # warm-up: weights paged in, buffers sized
-        client.run(s.url, 1, 2, max_tokens, s.extra)
-        results[s.name]["texts"] = client.run(s.url, 1, 8, max_tokens, s.extra, keep_texts=True)["texts"]
-        batched = client.run(s.url, 8, 8, max_tokens, s.extra, keep_texts=True)["texts"]
+        client.run(s.url, 4, 16, max_tokens, s.extra, stream=stream)  # warm-up: weights paged in, buffers sized
+        client.run(s.url, 1, 2, max_tokens, s.extra, stream=stream)
+        results[s.name]["texts"] = client.run(s.url, 1, 8, max_tokens, s.extra, keep_texts=True, stream=stream)["texts"]
+        batched = client.run(s.url, 8, 8, max_tokens, s.extra, keep_texts=True, stream=stream)["texts"]
         # The same prompts decoded side by side must give the same greedy answers as one at a time.
         results[s.name]["batched_same"] = sum(1 for k, v in results[s.name]["texts"].items() if batched.get(k) == v)
     for c in concurrencies:
@@ -142,11 +142,11 @@ def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s):
             order = servers if rep % 2 == 0 else servers[::-1]
             for s in order:
                 before = wait_quiet(max_load, patience_s)
-                r = client.run(s.url, c, total, max_tokens, s.extra)
+                r = client.run(s.url, c, total, max_tokens, s.extra, stream=stream)
                 r["busy_cores_before"] = before
                 results[s.name]["runs"][c].append(r)
-                print("%s c=%d rep=%d: %.1f tok/s, neighbours %.1f cores" % (s.name, c, rep, r["gen_tok_per_s"],
-                                                                           before), flush=True)
+                print("%s c=%d rep=%d: %.1f tok/s, ttft p50 %.2f s, neighbours %.1f cores"
+                      % (s.name, c, rep, r["gen_tok_per_s"], r.get("ttft_p50_s", 0), before), flush=True)
     for s in servers:
         results[s.name]["rss_peak_mb"] = rss_kb(s.pid, "VmHWM") / 1024
         results[s.name]["rss_end_mb"] = rss_kb(s.pid, "VmRSS") / 1024
@@ -158,21 +158,18 @@ def median(values):
 
 
 def table(results):
-    lines = ["| server | conc | req/s | gen tok/s | p50 s | p95 s | failed |", "|---|---|---|---|---|---|---|"]
+    streaming = any("ttft_p50_s" in r for d in results.values() for rs in d["runs"].values() for r in rs)
+    lines = ["| server | conc | req/s | gen tok/s | p50 s | p95 s |%s failed |" % (" ttft p50 s | ttft p95 s |" if streaming else ""),
+             "|---|---|---|---|---|---|---|" + ("---|---|" if streaming else "")]
     for name, data in results.items():
         for c, runs in data["runs"].items():
-            lines.append(
-                "| %s | %s | %.2f | %.1f | %.2f | %.2f | %d |"
-                % (
-                    name,
-                    c,
-                    median([r["req_per_s"] for r in runs]),
-                    median([r["gen_tok_per_s"] for r in runs]),
-                    median([r["p50_s"] for r in runs]),
-                    median([r["p95_s"] for r in runs]),
-                    sum(r["failures"] for r in runs),
-                )
-            )
+            cells = [name, str(c)]
+            cells += ["%.2f" % median([r["req_per_s"] for r in runs]), "%.1f" % median([r["gen_tok_per_s"] for r in runs]),
+                      "%.2f" % median([r["p50_s"] for r in runs]), "%.2f" % median([r["p95_s"] for r in runs])]
+            if streaming:
+                cells += ["%.2f" % median([r["ttft_p50_s"] for r in runs]), "%.2f" % median([r["ttft_p95_s"] for r in runs])]
+            cells.append(str(sum(r["failures"] for r in runs)))
+            lines.append("| " + " | ".join(cells) + " |")
     lines += ["", "| server | RSS idle MB | RSS peak MB | RSS end MB |", "|---|---|---|---|"]
     for name, data in results.items():
         lines.append("| %s | %.0f | %.0f | %.0f |" % (name, data["rss_idle_mb"], data["rss_peak_mb"], data["rss_end_mb"]))
@@ -199,6 +196,7 @@ def main():
     parser.add_argument("--max-tokens", type=int, default=64)
     parser.add_argument("--max-load", type=float, default=1e9, help="wait until the neighbours use fewer cores than this")
     parser.add_argument("--patience", type=int, default=600, help="seconds to wait for a quiet machine per run")
+    parser.add_argument("--stream", action="store_true", help='every request says "stream": true; adds time to first token')
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--out", default=os.path.join(ROOT, "bench", "results", "latest.json"))
     args = parser.parse_args()
@@ -213,13 +211,13 @@ def main():
             port = args.port + i
             cmd, env = commands(args.agentica, port, args.threads, args.ctx, args.slots)[name]
             servers.append(Server(name, cmd, env, port, log_dir))
-        results = bench(servers, concurrencies, args.reps, args.max_tokens, args.max_load, args.patience)
+        results = bench(servers, concurrencies, args.reps, args.max_tokens, args.max_load, args.patience, args.stream)
     finally:
         for s in servers:
             s.stop()
     with open(args.out, "w") as f:
         json.dump({"threads": args.threads, "ctx": args.ctx, "slots": args.slots, "max_tokens": args.max_tokens,
-                   "results": results}, f, indent=1)
+                   "stream": args.stream, "results": results}, f, indent=1)
     print(table(results))
 
 

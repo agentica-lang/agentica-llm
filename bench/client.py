@@ -4,7 +4,9 @@
 Standard library only: one thread per concurrent client, each with its own
 keep-alive connection, sending requests back to back until `--requests` are
 done. Prints one JSON object with requests/s, generated tokens/s and latency
-percentiles.
+percentiles. With `--stream` every request says `"stream": true` (and asks for
+the usage chunk) and the client also records the time to first token: the time
+until the first event whose `delta.content` is not empty.
 """
 import argparse
 import http.client
@@ -49,11 +51,52 @@ def percentile(sorted_values, q):
     return sorted_values[low] + (sorted_values[high] - sorted_values[low]) * (k - low)
 
 
-def run(url, concurrency, total, max_tokens, extra, keep_texts=False, health=False):
+def read_stream(response, started):
+    """Reads an SSE chat stream to `[DONE]`.
+
+    Returns (time to first content, time to `[DONE]`, completion tokens, prompt tokens, text). The body is then
+    drained, so the keep-alive connection is ready for the next request.
+    """
+    first = None
+    parts = []
+    usage = {}
+    pieces = 0
+    while True:
+        line = response.readline()
+        if not line:
+            raise RuntimeError("stream ended without [DONE]")
+        line = line.strip()
+        if not line.startswith(b"data:"):
+            continue
+        data = line[len(b"data:"):].strip()
+        if data == b"[DONE]":
+            finished = time.perf_counter() - started
+            response.read()
+            break
+        event = json.loads(data)
+        if event.get("usage"):
+            usage = event["usage"]
+        for choice in event.get("choices") or []:
+            content = (choice.get("delta") or {}).get("content")
+            if content:
+                if first is None:
+                    first = time.perf_counter() - started
+                parts.append(content)
+                pieces += 1
+    if first is None:
+        raise RuntimeError("stream without content")
+    # Without a usage chunk the pieces are the best count of tokens.
+    return first, finished, usage.get("completion_tokens", pieces), usage.get("prompt_tokens", 0), "".join(parts)
+
+
+def run(url, concurrency, total, max_tokens, extra, keep_texts=False, health=False, stream=False):
     target = urlparse(url)
     lock = threading.Lock()
     state = {"next": 0}
+    if stream:
+        extra = dict(extra, stream=True, stream_options={"include_usage": True})
     latencies = []
+    first_tokens = []
     tokens = []
     prompt_tokens = []
     texts = {}
@@ -68,6 +111,10 @@ def run(url, concurrency, total, max_tokens, extra, keep_texts=False, health=Fal
                     break
                 state["next"] += 1
             body = body_for(index, max_tokens, extra)
+            if stream:
+                # llama-server closes the connection after a stream although it says keep-alive, so a stream
+                # gets a new connection on both servers (about 0.1 ms on localhost).
+                conn.close()
             started = time.perf_counter()
             try:
                 if health:
@@ -75,6 +122,16 @@ def run(url, concurrency, total, max_tokens, extra, keep_texts=False, health=Fal
                 else:
                     conn.request("POST", "/v1/chat/completions", body, {"Content-Type": "application/json"})
                 response = conn.getresponse()
+                if stream and response.status == 200:
+                    first, elapsed, completion, prompt, text = read_stream(response, started)
+                    with lock:
+                        latencies.append(elapsed)
+                        first_tokens.append(first)
+                        tokens.append(completion)
+                        prompt_tokens.append(prompt)
+                        if keep_texts:
+                            texts[index] = text
+                    continue
                 raw = response.read()
                 elapsed = time.perf_counter() - started
                 if response.status != 200:
@@ -119,6 +176,10 @@ def run(url, concurrency, total, max_tokens, extra, keep_texts=False, health=Fal
         "p50_s": percentile(ordered, 0.50),
         "p95_s": percentile(ordered, 0.95),
     }
+    if stream:
+        firsts = sorted(first_tokens)
+        result["ttft_p50_s"] = percentile(firsts, 0.50)
+        result["ttft_p95_s"] = percentile(firsts, 0.95)
     if failures:
         result["first_failure"] = failures[0]
     if keep_texts:
@@ -134,9 +195,11 @@ def main():
     parser.add_argument("--max-tokens", type=int, default=64)
     parser.add_argument("--extra", default="{}", help="JSON merged into every request body")
     parser.add_argument("--health", action="store_true", help="GET /health instead: the serving layer alone")
+    parser.add_argument("--stream", action="store_true", help='send "stream": true and measure time to first token')
     parser.add_argument("--texts", action="store_true", help="include the answers in the output")
     args = parser.parse_args()
-    result = run(args.url, args.concurrency, args.requests, args.max_tokens, json.loads(args.extra), args.texts, args.health)
+    result = run(args.url, args.concurrency, args.requests, args.max_tokens, json.loads(args.extra), args.texts, args.health,
+                 args.stream)
     print(json.dumps(result))
 
 
