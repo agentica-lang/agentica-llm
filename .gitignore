@@ -1,0 +1,4 @@
+deps/
+bench/results/
+*.agcb
+native/linux/

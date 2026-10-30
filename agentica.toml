@@ -1,0 +1,12 @@
+name = "agentica-llm"
+
+# Prebuilt llama.cpp release (scripts/fetch-llama.sh). libllama.so finds
+# libggml.so next to itself through RUNPATH=$ORIGIN.
+[native.llama]
+linux = { file = "native/linux/libllama.so.0" }
+
+[native.ggml]
+linux = { file = "native/linux/libggml.so.0" }
+
+[dependencies]
+bond = { git = "https://github.com/agentica-lang/bond", ref = "a673e4ad72f27d860a5c3ece021100df084410d7" }
