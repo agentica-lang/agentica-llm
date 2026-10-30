@@ -94,11 +94,35 @@ class Server:
         self.log.close()
 
 
-def load1():
-    return os.getloadavg()[0]
+def busy_cores(window_s=4.0):
+    """Cores the machine uses over a short window. Called while both servers are idle, so it is the neighbours."""
+
+    def sample():
+        with open("/proc/stat") as f:
+            fields = [int(x) for x in f.readline().split()[1:]]
+        idle = fields[3] + fields[4]
+        return sum(fields) - idle, sum(fields)
+
+    busy0, total0 = sample()
+    time.sleep(window_s)
+    busy1, total1 = sample()
+    return (busy1 - busy0) / max(1, total1 - total0) * (os.cpu_count() or 1)
 
 
-def bench(servers, concurrencies, reps, max_tokens):
+def wait_quiet(max_busy, patience_s):
+    """Waits until the neighbours use fewer than `max_busy` cores, at most `patience_s`.
+
+    The machine is shared: a busy neighbour stalls the spinning threads of ggml, so a run is only comparable on a
+    quiet machine. The busy cores are recorded with every run, quiet or not.
+    """
+    deadline = time.time() + patience_s
+    busy = busy_cores()
+    while busy > max_busy and time.time() < deadline:
+        busy = busy_cores()
+    return busy
+
+
+def bench(servers, concurrencies, reps, max_tokens, max_load, patience_s):
     """Runs the servers alternately, rep by rep, so a noisy machine hurts both the same."""
     for s in servers:
         wait_ready(s.port, s.proc)
@@ -117,12 +141,12 @@ def bench(servers, concurrencies, reps, max_tokens):
         for rep in range(reps):
             order = servers if rep % 2 == 0 else servers[::-1]
             for s in order:
-                before = load1()
+                before = wait_quiet(max_load, patience_s)
                 r = client.run(s.url, c, total, max_tokens, s.extra)
-                r["load1_before"] = before
+                r["busy_cores_before"] = before
                 results[s.name]["runs"][c].append(r)
-                print("%s c=%d rep=%d: %.1f tok/s, load %.1f" % (s.name, c, rep, r["gen_tok_per_s"], before),
-                      flush=True)
+                print("%s c=%d rep=%d: %.1f tok/s, neighbours %.1f cores" % (s.name, c, rep, r["gen_tok_per_s"],
+                                                                           before), flush=True)
     for s in servers:
         results[s.name]["rss_peak_mb"] = rss_kb(s.pid, "VmHWM") / 1024
         results[s.name]["rss_end_mb"] = rss_kb(s.pid, "VmRSS") / 1024
@@ -173,6 +197,8 @@ def main():
     parser.add_argument("--concurrency", default="1,4,16")
     parser.add_argument("--reps", type=int, default=3)
     parser.add_argument("--max-tokens", type=int, default=64)
+    parser.add_argument("--max-load", type=float, default=1e9, help="wait until the neighbours use fewer cores than this")
+    parser.add_argument("--patience", type=int, default=600, help="seconds to wait for a quiet machine per run")
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--out", default=os.path.join(ROOT, "bench", "results", "latest.json"))
     args = parser.parse_args()
@@ -187,7 +213,7 @@ def main():
             port = args.port + i
             cmd, env = commands(args.agentica, port, args.threads, args.ctx, args.slots)[name]
             servers.append(Server(name, cmd, env, port, log_dir))
-        results = bench(servers, concurrencies, args.reps, args.max_tokens)
+        results = bench(servers, concurrencies, args.reps, args.max_tokens, args.max_load, args.patience)
     finally:
         for s in servers:
             s.stop()

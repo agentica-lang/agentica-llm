@@ -49,7 +49,7 @@ def percentile(sorted_values, q):
     return sorted_values[low] + (sorted_values[high] - sorted_values[low]) * (k - low)
 
 
-def run(url, concurrency, total, max_tokens, extra, keep_texts=False):
+def run(url, concurrency, total, max_tokens, extra, keep_texts=False, health=False):
     target = urlparse(url)
     lock = threading.Lock()
     state = {"next": 0}
@@ -70,12 +70,21 @@ def run(url, concurrency, total, max_tokens, extra, keep_texts=False):
             body = body_for(index, max_tokens, extra)
             started = time.perf_counter()
             try:
-                conn.request("POST", "/v1/chat/completions", body, {"Content-Type": "application/json"})
+                if health:
+                    conn.request("GET", "/health")
+                else:
+                    conn.request("POST", "/v1/chat/completions", body, {"Content-Type": "application/json"})
                 response = conn.getresponse()
                 raw = response.read()
                 elapsed = time.perf_counter() - started
                 if response.status != 200:
                     raise RuntimeError("status %d: %s" % (response.status, raw[:200]))
+                if health:
+                    with lock:
+                        latencies.append(elapsed)
+                        tokens.append(0)
+                        prompt_tokens.append(0)
+                    continue
                 data = json.loads(raw)
                 with lock:
                     latencies.append(elapsed)
@@ -124,9 +133,10 @@ def main():
     parser.add_argument("--requests", type=int, default=16)
     parser.add_argument("--max-tokens", type=int, default=64)
     parser.add_argument("--extra", default="{}", help="JSON merged into every request body")
+    parser.add_argument("--health", action="store_true", help="GET /health instead: the serving layer alone")
     parser.add_argument("--texts", action="store_true", help="include the answers in the output")
     args = parser.parse_args()
-    result = run(args.url, args.concurrency, args.requests, args.max_tokens, json.loads(args.extra), args.texts)
+    result = run(args.url, args.concurrency, args.requests, args.max_tokens, json.loads(args.extra), args.texts, args.health)
     print(json.dumps(result))
 
 

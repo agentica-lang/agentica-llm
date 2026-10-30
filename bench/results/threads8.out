@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/home/sonic182/apps/agentica-llm/bench/run_all.py", line 201, in <module>
+    main()
+    ~~~~^^
+  File "/home/sonic182/apps/agentica-llm/bench/run_all.py", line 190, in main
+    results = bench(servers, concurrencies, args.reps, args.max_tokens)
+  File "/home/sonic182/apps/agentica-llm/bench/run_all.py", line 121, in bench
+    r = client.run(s.url, c, total, max_tokens, s.extra)
+  File "/home/sonic182/apps/agentica-llm/bench/client.py", line 98, in run
+    conn.close()
+    
+  File "/usr/lib/python3.13/threading.py", line 1094, in join
+    self._handle.join(timeout)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyboardInterrupt
