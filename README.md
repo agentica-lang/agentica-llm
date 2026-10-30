@@ -227,3 +227,7 @@ bench/client.py, run_all.py    the load client and the comparison runner
 bench/results/                 the JSON of every run behind the tables
 tests/test_api.py              end-to-end test
 ```
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
