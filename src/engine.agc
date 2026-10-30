@@ -7,6 +7,7 @@
 import Llama from "llama"
 
 IDLE_WAIT_MS = 100
+STATS_WINDOW_MS = 5000
 REPLY_TIMEOUT_MS = 5000
 
 ## A request already tokenized by the route; the answer goes back on `reply`.
@@ -31,6 +32,23 @@ export struct EngineConfig
   n_batch: Int
   n_parallel: Int
   threads: Int
+  stats: Bool = false
+end
+
+# Where the time of a window of steps went, in nanoseconds: in `llama_decode` (C) or in everything else of the
+# step (filling the batch, sampling, bookkeeping: Agentica).
+struct Stats
+  steps: Int
+  rows: Int
+  decode_ns: Int
+  step_ns: Int
+  since_ms: Int
+end
+
+struct StepResult
+  seqs: List[Seq]
+  rows: Int
+  decode_ns: Int
 end
 
 # What the engine needs at each step; the context is owned by the engine task.
@@ -73,13 +91,35 @@ export def run(model: Llama.Model, config: EngineConfig, requests: Channel[GenRe
     config: config,
   )
   seqs: List[Seq] = []
+  stats = Stats(steps: 0, rows: 0, decode_ns: 0, step_ns: 0, since_ms: Time.monotonic_ms())
   while true
     seqs = admit(engine, seqs, requests)
     if not seqs.empty?
-      seqs = step(engine, seqs)
+      began = Time.monotonic_ns()
+      done = step(engine, seqs)
+      seqs = done.seqs
+      stats = account(config, stats, done, Time.monotonic_ns() - began)
     end
   end
   return ok()
+end
+
+# Adds a step to the window and prints the window to stderr every few seconds when `--stats` is on.
+def account(config: EngineConfig, stats: Stats, done: StepResult, step_ns: Int) -> Stats
+  grown = stats.with(
+    steps: stats.steps + 1,
+    rows: stats.rows + done.rows,
+    decode_ns: stats.decode_ns + done.decode_ns,
+    step_ns: stats.step_ns + step_ns,
+  )
+  now = Time.monotonic_ms()
+  if not config.stats or now - grown.since_ms < STATS_WINDOW_MS
+    return grown
+  end
+  decode_ms = grown.decode_ns / 1_000_000
+  other_ms = (grown.step_ns - grown.decode_ns) / 1_000_000
+  IO.warn("stats: steps=#{grown.steps} tokens=#{grown.rows} decode_ms=#{decode_ms} agentica_ms=#{other_ms}")
+  return Stats(steps: 0, rows: 0, decode_ns: 0, step_ns: 0, since_ms: now)
 end
 
 # Takes waiting requests while a slot is free. Idle, it waits a little for the first one; busy, it only looks.
@@ -141,16 +181,20 @@ def taken_in?(taken: List[Int], slot: Int) -> Bool
 end
 
 # One batch: decode it, then sample and settle each sequence.
-def step(engine: Engine, seqs: List[Seq]) -> List[Seq]
+def step(engine: Engine, seqs: List[Seq]) -> StepResult
   feeds = plan(engine.config.n_batch, seqs)
   items = feeds.flat_map do |f| items_of(f) end
-  rc = Llama.decode(engine.ctx, Llama.fill(engine.buffer, items))
+  batch = Llama.fill(engine.buffer, items)
+  began = Time.monotonic_ns()
+  rc = Llama.decode(engine.ctx, batch)
+  decode_ns = Time.monotonic_ns() - began
   if rc != 0
     seqs.each do |s| fail_seq(engine, s, "decode failed with code #{rc}") end
-    return []
+    return StepResult(seqs: [], rows: items.size, decode_ns: decode_ns)
   end
   start_list: List[Seq] = []
-  return feeds.reduce(start_list) do |kept, f| settle(engine, kept, f) end
+  kept = feeds.reduce(start_list) do |acc, f| settle(engine, acc, f) end
+  return StepResult(seqs: kept, rows: items.size, decode_ns: decode_ns)
 end
 
 # Gives each sequence its pending tokens, in order, while the batch has room.

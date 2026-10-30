@@ -111,7 +111,7 @@ def bench(servers, concurrencies, reps, max_tokens):
         # The same prompts decoded side by side must give the same greedy answers as one at a time.
         results[s.name]["batched_same"] = sum(1 for k, v in results[s.name]["texts"].items() if batched.get(k) == v)
     for c in concurrencies:
-        total = max(16, 8 * c)
+        total = max(16, 4 * c)
         for s in servers:
             results[s.name]["runs"][c] = []
         for rep in range(reps):

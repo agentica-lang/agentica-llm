@@ -1,7 +1,7 @@
 ## The inference server: Bond routes in front of an engine task that batches requests on llama.cpp.
 ##
 ## agentica server.agc [--model PATH] [--port N] [--threads N] [--ctx N] [--parallel N] [--batch N]
-##                     [--backends DIR]
+##                     [--backends DIR] [--stats on]
 
 import Api from "src/api"
 import Bond from "pkg/bond/bond"
@@ -20,6 +20,7 @@ struct Options
   n_ctx: Int = 8192
   parallel: Int = 8
   n_batch: Int = 2048
+  stats: Bool = false
 end
 
 struct EngineJob
@@ -47,6 +48,7 @@ def serve(args: List[String]) -> Result[Void]
     n_batch: options.n_batch,
     n_parallel: options.parallel,
     threads: options.threads,
+    stats: options.stats,
   )
   engine = Task.spawn(&run_engine, EngineJob(model: model, config: config, requests: requests))
   api = Api.new_api(model, requests, "qwen2.5-0.5b-instruct")
@@ -82,6 +84,7 @@ end
 
 def apply(options: Options, flag: String, value: String) -> Result[Options]
   case flag
+    "--stats" -> return ok(options.with(stats: value == "on"))
     "--model" -> return ok(options.with(model: value))
     "--backends" -> return ok(options.with(backends: value))
     "--host" -> return ok(options.with(host: value))
