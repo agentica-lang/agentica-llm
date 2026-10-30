@@ -3,6 +3,11 @@
 ## Requests arrive on a channel. Each step puts the next token of every active sequence in one batch (a new
 ## sequence brings its whole prompt), decodes it once, samples each sequence in C and answers the sequences that
 ## finished. A free slot takes the next waiting request at once, so a long answer never holds the others back.
+##
+## A streaming request gets its answer in pieces on the same reply channel: one `GenResult` with `finish_reason`
+## "" and the new text for each token that completes a character, then a last one with the finish reason. The
+## engine never waits on that channel (its owner sizes it for the whole answer), and a send that fails (the reader
+## closed the channel because its client left, or fell behind) ends the sequence and frees its slot.
 
 import Llama from "llama"
 
@@ -10,15 +15,19 @@ IDLE_WAIT_MS = 100
 STATS_WINDOW_MS = 5000
 REPLY_TIMEOUT_MS = 5000
 
-## A request already tokenized by the route; the answer goes back on `reply`.
+## A request already tokenized by the route; the answer goes back on `reply`: one `GenResult`, or, when `stream` is
+## on, a piece per step and a last one with the finish reason.
 export struct GenRequest
   prompt: List[Int]
   max_tokens: Int
   temperature: Float
   seed: Int
+  stream: Bool = false
   reply: Channel[GenResult]
 end
 
+## The whole answer, or in a stream the text of one piece (`finish_reason` is "" until the last one, whose `text` is
+## empty). `completion_tokens` counts the tokens sampled so far in a piece.
 export struct GenResult
   text: String
   prompt_tokens: Int
@@ -69,6 +78,7 @@ struct Seq
   pending: List[Int]
   pos: Int
   parts: List[Bytes]
+  held: Bytes
   generated: Int
 end
 
@@ -159,6 +169,7 @@ def start(engine: Engine, active: List[Seq], request: GenRequest) -> Result[Seq]
         pending: request.prompt,
         pos: 0,
         parts: [],
+        held: "".bytes,
         generated: 0,
       ))
     error(message) ->
@@ -241,16 +252,65 @@ def settle(engine: Engine, kept: List[Seq], feed: Feed) -> List[Seq]
     finish(engine, seq, "stop")
     return kept
   end
-  grown = seq.with(
-    pending: [token],
-    parts: seq.parts.push(Llama.piece(engine.model, token, engine.scratch)),
-    generated: seq.generated + 1,
-  )
+  piece = Llama.piece(engine.model, token, engine.scratch)
+  if seq.request.stream
+    return settle_streaming(engine, kept, seq, token, piece)
+  end
+  grown = seq.with(pending: [token], parts: seq.parts.push(piece), generated: seq.generated + 1)
   if grown.generated >= grown.limit
     finish(engine, grown, "length")
     return kept
   end
   return kept.push(grown)
+end
+
+# A streaming sequence sends the text of the new token at once. A character can be split between tokens, so
+# the bytes of an unfinished one wait in `held` for the next token and every piece is valid UTF-8.
+def settle_streaming(engine: Engine, kept: List[Seq], seq: Seq, token: Int, piece: Bytes) -> List[Seq]
+  bytes = seq.held + piece
+  whole = utf8_complete(bytes)
+  grown = seq.with(pending: [token], held: bytes.drop(whole), generated: seq.generated + 1)
+  # Bytes that are not UTF-8 even when whole (a broken token) are dropped: the piece is empty.
+  text = String.from_bytes(bytes.take(whole)).unwrap_or("")
+  if not text.empty?
+    delta = GenResult(text: text, prompt_tokens: 0, completion_tokens: grown.generated, finish_reason: "", failure: "")
+    if not seq.request.reply.send(delta, 0).ok?
+      release(engine, grown)
+      return kept
+    end
+  end
+  if grown.generated >= grown.limit
+    finish(engine, grown, "length")
+    return kept
+  end
+  return kept.push(grown)
+end
+
+# How many leading bytes of `bytes` are whole UTF-8 characters: the rest is a character that is still missing
+# bytes (a lead byte of n bytes with fewer than n after it, within the last 3 bytes).
+def utf8_complete(bytes: Bytes) -> Int
+  size = bytes.size
+  back = 1
+  while back <= 3 and back <= size
+    byte = bytes[size - back]
+    if byte < 128
+      return size
+    end
+    if byte >= 192
+      need = 2
+      if byte >= 240
+        need = 4
+      elsif byte >= 224
+        need = 3
+      end
+      if need > back
+        return size - back
+      end
+      return size
+    end
+    back += 1
+  end
+  return size
 end
 
 def finish(engine: Engine, seq: Seq, reason: String) -> Void
@@ -264,7 +324,11 @@ def finish(engine: Engine, seq: Seq, reason: String) -> Void
     finish_reason: reason,
     failure: "",
   )
-  _ = seq.request.reply.send(answer, REPLY_TIMEOUT_MS)
+  wait = REPLY_TIMEOUT_MS
+  if seq.request.stream
+    wait = 0
+  end
+  _ = seq.request.reply.send(answer, wait)
 end
 
 def fail_seq(engine: Engine, seq: Seq, message: String) -> Void
@@ -279,7 +343,7 @@ end
 
 def refuse(request: GenRequest, message: String) -> Void
   answer = GenResult(text: "", prompt_tokens: 0, completion_tokens: 0, finish_reason: "error", failure: message)
-  _ = request.reply.send(answer, REPLY_TIMEOUT_MS)
+  _ = request.reply.send(answer, 0)
 end
 
 def smaller(a: Int, b: Int) -> Int

@@ -51,7 +51,7 @@ def serve(args: List[String]) -> Result[Void]
     stats: options.stats,
   )
   engine = Task.spawn(&run_engine, EngineJob(model: model, config: config, requests: requests))
-  api = Api.new_api(model, requests, "qwen2.5-0.5b-instruct")
+  api = Api.new_api(model, requests, "qwen2.5-0.5b-instruct", options.n_ctx)
   server = try Bond.start_with(
     Api.app(api),
     options.host,

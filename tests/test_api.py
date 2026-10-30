@@ -83,6 +83,78 @@ class ApiTest(unittest.TestCase):
         _, b = self.chat(max_tokens=16, temperature=0.8, seed=7)
         self.assertEqual(a["choices"][0]["message"]["content"], b["choices"][0]["message"]["content"])
 
+    @classmethod
+    def stream(cls, messages=MESSAGES, **fields):
+        """POSTs with `stream: true`; returns (status, content type, body). The body ends when the server closes."""
+        conn = http.client.HTTPConnection("127.0.0.1", cls.port, timeout=120)
+        payload = dict(messages=messages, stream=True, **fields)
+        conn.request("POST", "/v1/chat/completions", json.dumps(payload), {"Content-Type": "application/json"})
+        response = conn.getresponse()
+        body = response.read().decode("utf-8")
+        conn.close()
+        return response.status, response.getheader("Content-Type"), body
+
+    def events(self, body):
+        """The `data:` payloads of a stream body, in order."""
+        blocks = [block for block in body.split("\n\n") if block]
+        self.assertTrue(all(block.startswith("data: ") for block in blocks), body)
+        return [block[len("data: "):] for block in blocks]
+
+    def test_stream_chunks_add_up_to_the_greedy_answer(self):
+        _, whole = self.chat(max_tokens=24, temperature=0)
+        status, content_type, body = self.stream(
+            max_tokens=24, temperature=0, stream_options={"include_usage": True})
+        events = self.events(body)
+        self.assertEqual(status, 200)
+        self.assertTrue(content_type.startswith("text/event-stream"), content_type)
+        self.assertEqual(events[-1], "[DONE]")
+        chunks = [json.loads(e) for e in events[:-1]]
+        self.assertEqual({c["object"] for c in chunks}, {"chat.completion.chunk"})
+        self.assertEqual(len({c["id"] for c in chunks}), 1)
+        # first chunk: the role; then content pieces; then the finish reason; then the usage chunk (no choices)
+        first, last, usage = chunks[0]["choices"][0], chunks[-2]["choices"][0], chunks[-1]
+        self.assertEqual(first["delta"]["role"], "assistant")
+        self.assertIsNone(first["finish_reason"])
+        self.assertEqual(last["delta"], {})
+        self.assertEqual(last["finish_reason"], whole["choices"][0]["finish_reason"])
+        self.assertEqual(usage["choices"], [])
+        self.assertEqual(usage["usage"], whole["usage"])
+        middle = [c["choices"][0] for c in chunks[1:-2]]
+        self.assertTrue(all(m["finish_reason"] is None and m["delta"]["content"] for m in middle))
+        self.assertEqual("".join(m["delta"]["content"] for m in middle), whole["choices"][0]["message"]["content"])
+
+    def test_stream_keeps_multibyte_characters_whole(self):
+        # Emoji often span several tokens: every piece must still be valid UTF-8 (the body decodes and the pieces
+        # have no replacement character) and the pieces must add up to the non-streaming text.
+        messages = [{"role": "user", "content": "Write 3 lines using rare emoji such as \U0001FAE0 \U0001FABF."}]
+        _, data = self.request("POST", "/v1/chat/completions", {"messages": messages, "max_tokens": 60, "temperature": 0})
+        _, _, body = self.stream(messages, max_tokens=60, temperature=0)
+        pieces = [json.loads(e)["choices"][0]["delta"].get("content", "") for e in self.events(body)[:-1]]
+        self.assertNotIn("\ufffd", "".join(pieces))
+        self.assertEqual("".join(pieces), json.loads(data)["choices"][0]["message"]["content"])
+
+    def test_stream_of_a_refused_request_is_400(self):
+        long_prompt = [{"role": "user", "content": "word " * 3000}]
+        self.assertEqual(self.stream(long_prompt)[0], 400)
+
+    def test_clients_that_leave_free_their_slots(self):
+        # More abandoned streams than slots (4), each asking for far more than it reads. If the engine kept
+        # decoding for them, the request after them would wait minutes for a slot.
+        for _ in range(6):
+            sock = socket.create_connection(("127.0.0.1", self.port), timeout=120)
+            body = json.dumps({"messages": MESSAGES, "stream": True, "max_tokens": 900, "temperature": 0})
+            sock.sendall(("POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"
+                          "Content-Length: %d\r\n\r\n%s" % (len(body), body)).encode())
+            got = b""
+            while b"data: {" not in got.split(b"\r\n\r\n", 1)[-1]:
+                got += sock.recv(4096)
+            sock.close()
+        started = time.time()
+        status, answer = self.chat(max_tokens=8, temperature=0)
+        self.assertEqual(status, 200)
+        self.assertLess(time.time() - started, 60)
+        self.assertEqual(self.request("GET", "/health")[0], 200)
+
     def test_bad_requests_are_400(self):
         self.assertEqual(self.request("POST", "/v1/chat/completions", {"messages": []})[0], 400)
         self.assertEqual(self.request("POST", "/v1/chat/completions", {"nope": 1})[0], 400)
