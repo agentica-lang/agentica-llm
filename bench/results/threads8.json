@@ -1,0 +1,290 @@
+{
+ "threads": 8,
+ "ctx": 8192,
+ "slots": 8,
+ "max_tokens": 64,
+ "results": {
+  "agentica": {
+   "runs": {
+    "1": [
+     {
+      "concurrency": 1,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 37.661537228999805,
+      "req_per_s": 0.4248366152106989,
+      "gen_tok_per_s": 27.030229642780714,
+      "completion_tokens": 1018,
+      "prompt_tokens": 444,
+      "p50_s": 2.2599257010006113,
+      "p95_s": 2.858106234749357,
+      "busy_cores_before": 1.4579911560328491
+     },
+     {
+      "concurrency": 1,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 35.764457724999374,
+      "req_per_s": 0.4473715251892661,
+      "gen_tok_per_s": 28.464013290167056,
+      "completion_tokens": 1018,
+      "prompt_tokens": 444,
+      "p50_s": 2.2498636174996136,
+      "p95_s": 2.482062636749106,
+      "busy_cores_before": 0.20887071406102548
+     },
+     {
+      "concurrency": 1,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 36.77329751800062,
+      "req_per_s": 0.43509832079018645,
+      "gen_tok_per_s": 27.683130660275612,
+      "completion_tokens": 1018,
+      "prompt_tokens": 444,
+      "p50_s": 2.247189650999644,
+      "p95_s": 2.5716597492496476,
+      "busy_cores_before": 0.2639019792648445
+     }
+    ],
+    "4": [
+     {
+      "concurrency": 4,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 27.60244533900004,
+      "req_per_s": 0.5796587875999987,
+      "gen_tok_per_s": 37.098162406399915,
+      "completion_tokens": 1024,
+      "prompt_tokens": 444,
+      "p50_s": 6.949492717500107,
+      "p95_s": 7.405546134499673,
+      "busy_cores_before": 0.2387684574300974
+     },
+     {
+      "concurrency": 4,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 29.510689082999306,
+      "req_per_s": 0.5421764281748804,
+      "gen_tok_per_s": 34.69929140319235,
+      "completion_tokens": 1024,
+      "prompt_tokens": 444,
+      "p50_s": 7.404686585999116,
+      "p95_s": 7.993470516250454,
+      "busy_cores_before": 0.7937007874015748
+     },
+     {
+      "concurrency": 4,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 30.215905403998477,
+      "req_per_s": 0.5295224414451177,
+      "gen_tok_per_s": 33.889436252487535,
+      "completion_tokens": 1024,
+      "prompt_tokens": 444,
+      "p50_s": 7.569982625999728,
+      "p95_s": 8.228210837000006,
+      "busy_cores_before": 0.5034612964128382
+     }
+    ],
+    "16": [
+     {
+      "concurrency": 16,
+      "requests": 64,
+      "failures": 0,
+      "wall_s": 118.35787803599851,
+      "req_per_s": 0.5407329115898345,
+      "gen_tok_per_s": 34.60690634174941,
+      "completion_tokens": 4096,
+      "prompt_tokens": 1776,
+      "p50_s": 28.960081247499147,
+      "p95_s": 32.687977838100416,
+      "busy_cores_before": 0.1910147659440779
+     },
+     {
+      "concurrency": 16,
+      "requests": 64,
+      "failures": 0,
+      "wall_s": 107.36069863699959,
+      "req_per_s": 0.5961213070752481,
+      "gen_tok_per_s": 38.15176365281588,
+      "completion_tokens": 4096,
+      "prompt_tokens": 1776,
+      "p50_s": 26.900008515999616,
+      "p95_s": 28.174305914949855,
+      "busy_cores_before": 0.22799874725963043
+     },
+     {
+      "concurrency": 16,
+      "requests": 64,
+      "failures": 0,
+      "wall_s": 154.57563304299947,
+      "req_per_s": 0.4140367970040701,
+      "gen_tok_per_s": 26.498355008260486,
+      "completion_tokens": 4096,
+      "prompt_tokens": 1776,
+      "p50_s": 35.89367867850069,
+      "p95_s": 53.99972045899976,
+      "busy_cores_before": 0.3343808925204274
+     }
+    ]
+   },
+   "rss_idle_mb": 689.53515625,
+   "texts": {
+    "0": "A hash table is a data structure that allows for efficient storage and retrieval of data. It works by using a hash function to map each key to a unique index in an array of buckets. The hash function takes the key and produces an index that is used to locate the corresponding value in the array of buckets. When a",
+    "1": "The lighthouse keeper stood at his desk, his eyes fixed on the sea. He had been working at the lighthouse for years, and he had seen many changes in the town. But he had always been a loyal and hardworking man, always ready to help those in need.\n\nOne day, a storm came,",
+    "2": "The French Revolution was a period of political upheaval and social change that began in 1789 and lasted until 1799. The main causes of the French Revolution were:\n\n1. The French Revolution was a result of the complex interplay of factors, including the rise of the bourgeoisie, the decline",
+    "3": "The water cycle is a continuous process that involves the movement of water on, above, and below the surface of the Earth. It is a crucial part of the Earth's water cycle and plays a vital role in the global water cycle. The water cycle can be divided into four main steps: evaporation, condensation,",
+    "4": "Sure, here's a recipe for a simple vegetable soup:\n\nIngredients:\n- 1 onion, chopped\n- 2 cloves garlic, minced\n- 4 cups vegetable broth\n- 2 cups canned tomatoes (with juice)\n- 1 can (14 oz) diced tomatoes\n- 1 can (1",
+    "5": "A binary search is a search algorithm that works by dividing a list into two halves and then repeatedly searching the search space in the half that contains the target value. Here's an example:\n\nSuppose we have a list of numbers [1, 2, 3, 4, 5, 6, ",
+    "6": "The sky is blue because it is made up of tiny particles of nitrogen and oxygen gas. When these particles are heated, they expand and rise into the air, creating a blue color. The color of the sky can also change depending on the time of day and the angle at which the sun is shining.",
+    "7": "Learning a new language can be a challenging but rewarding experience. Here are some tips that can help you learn a new language:\n\n1. Start with a beginner level: If you are new to a language, start with a beginner level. This will help you learn the basics and build your vocabulary.\n\n2. Practice regularly:"
+   },
+   "batched_same": 0,
+   "rss_peak_mb": 771.0234375,
+   "rss_end_mb": 739.47265625
+  },
+  "llama-server": {
+   "runs": {
+    "1": [
+     {
+      "concurrency": 1,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 37.84303417099909,
+      "req_per_s": 0.42279907915685994,
+      "gen_tok_per_s": 26.95344129624982,
+      "completion_tokens": 1020,
+      "prompt_tokens": 444,
+      "p50_s": 2.1251695999999356,
+      "p95_s": 3.2493270364989257,
+      "busy_cores_before": 1.15901948460088
+     },
+     {
+      "concurrency": 1,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 32.0885790450011,
+      "req_per_s": 0.4986197730214717,
+      "gen_tok_per_s": 31.78701053011882,
+      "completion_tokens": 1020,
+      "prompt_tokens": 444,
+      "p50_s": 1.9907834575005836,
+      "p95_s": 2.1966490202503337,
+      "busy_cores_before": 0.1736941472624292
+     },
+     {
+      "concurrency": 1,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 33.168920551001065,
+      "req_per_s": 0.48237927958487953,
+      "gen_tok_per_s": 30.75167907353607,
+      "completion_tokens": 1020,
+      "prompt_tokens": 444,
+      "p50_s": 2.0738662930007195,
+      "p95_s": 2.2580394574997626,
+      "busy_cores_before": 0.31708084303240014
+     }
+    ],
+    "4": [
+     {
+      "concurrency": 4,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 32.612173306999466,
+      "req_per_s": 0.4906143435882564,
+      "gen_tok_per_s": 31.276664403751344,
+      "completion_tokens": 1020,
+      "prompt_tokens": 444,
+      "p50_s": 8.049055372499424,
+      "p95_s": 9.460085192999486,
+      "busy_cores_before": 0.20370952530650738
+     },
+     {
+      "concurrency": 4,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 34.325926717001494,
+      "req_per_s": 0.4661199719940923,
+      "gen_tok_per_s": 29.715148214623383,
+      "completion_tokens": 1020,
+      "prompt_tokens": 444,
+      "p50_s": 8.792433808500391,
+      "p95_s": 9.284363401750397,
+      "busy_cores_before": 0.3552755905511811
+     },
+     {
+      "concurrency": 4,
+      "requests": 16,
+      "failures": 0,
+      "wall_s": 32.9378604880003,
+      "req_per_s": 0.4857631844615109,
+      "gen_tok_per_s": 31.088843805536698,
+      "completion_tokens": 1024,
+      "prompt_tokens": 444,
+      "p50_s": 8.249122919999536,
+      "p95_s": 8.582702157000313,
+      "busy_cores_before": 0.48743718592964824
+     }
+    ],
+    "16": [
+     {
+      "concurrency": 16,
+      "requests": 64,
+      "failures": 0,
+      "wall_s": 182.58134757799962,
+      "req_per_s": 0.35052868679621774,
+      "gen_tok_per_s": 22.433835954957935,
+      "completion_tokens": 4096,
+      "prompt_tokens": 1776,
+      "p50_s": 45.285862764999365,
+      "p95_s": 74.19054158449953,
+      "busy_cores_before": 0.45116572148708256
+     },
+     {
+      "concurrency": 16,
+      "requests": 64,
+      "failures": 0,
+      "wall_s": 109.79999700199915,
+      "req_per_s": 0.5828779758421555,
+      "gen_tok_per_s": 37.30419045389795,
+      "completion_tokens": 4096,
+      "prompt_tokens": 1776,
+      "p50_s": 27.37182276099975,
+      "p95_s": 29.871881488549842,
+      "busy_cores_before": 0.18370556778861277
+     },
+     {
+      "concurrency": 16,
+      "requests": 64,
+      "failures": 0,
+      "wall_s": 192.31858740700045,
+      "req_per_s": 0.33278114644508033,
+      "gen_tok_per_s": 21.29799337248514,
+      "completion_tokens": 4096,
+      "prompt_tokens": 1776,
+      "p50_s": 42.67351091550063,
+      "p95_s": 74.8048682692508,
+      "busy_cores_before": 1.1421271159374002
+     }
+    ]
+   },
+   "rss_idle_mb": 671.80078125,
+   "texts": {
+    "0": "A hash table is a data structure that allows for efficient storage and retrieval of data. It works by using a hash function to map each key to a unique index in an array of buckets. The hash function takes the key and produces an index that is used to locate the corresponding value in the array of buckets. When a",
+    "1": "The lighthouse keeper stood at his desk, his eyes fixed on the sea. He had been working at the lighthouse for years, and he had seen many changes in the town. But he had always been a loyal and hardworking man, always ready to help those in need.\n\nOne day, a storm came,",
+    "2": "The French Revolution was a period of political upheaval and social change that began in 1789 and lasted until 1799. The main causes of the French Revolution were:\n\n1. The French Revolution was a result of the complex interplay of factors, including the rise of the bourgeoisie, the decline",
+    "3": "The water cycle is a continuous process that involves the movement of water on, above, and below the surface of the Earth. It is a crucial part of the Earth's water cycle and plays a vital role in the global water cycle. The water cycle can be divided into four main steps: evaporation, condensation,",
+    "4": "Sure, here's a recipe for a simple vegetable soup:\n\nIngredients:\n- 1 onion, chopped\n- 2 cloves garlic, minced\n- 4 cups vegetable broth\n- 2 cups canned tomatoes (with juice)\n- 1 can (14 oz) diced tomatoes\n- 1 can (1",
+    "5": "A binary search is a search algorithm that works by dividing a list into two halves and then repeatedly searching the search space in the half that contains the target value. Here's an example:\n\nSuppose we have a list of numbers [1, 2, 3, 4, 5, 6, ",
+    "6": "The sky is blue because it is made up of tiny particles of nitrogen and oxygen gas. When these particles are heated, they expand and rise into the air, creating a blue color. The color of the sky can also change depending on the time of day and the angle at which the sun is shining.",
+    "7": "Learning a new language can be a challenging but rewarding experience. Here are some tips that can help you learn a new language:\n\n1. Start with a beginner level: If you are new to a language, start with a beginner level. This will help you learn the basics and build your vocabulary.\n\n2. Practice regularly:"
+   },
+   "batched_same": 2,
+   "rss_peak_mb": 703.90234375,
+   "rss_end_mb": 703.90234375
+  }
+ }
+}

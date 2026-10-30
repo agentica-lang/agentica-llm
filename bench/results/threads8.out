@@ -1,15 +1,36 @@
-Traceback (most recent call last):
-  File "/home/sonic182/apps/agentica-llm/bench/run_all.py", line 201, in <module>
-    main()
-    ~~~~^^
-  File "/home/sonic182/apps/agentica-llm/bench/run_all.py", line 190, in main
-    results = bench(servers, concurrencies, args.reps, args.max_tokens)
-  File "/home/sonic182/apps/agentica-llm/bench/run_all.py", line 121, in bench
-    r = client.run(s.url, c, total, max_tokens, s.extra)
-  File "/home/sonic182/apps/agentica-llm/bench/client.py", line 98, in run
-    conn.close()
-    
-  File "/usr/lib/python3.13/threading.py", line 1094, in join
-    self._handle.join(timeout)
-    ~~~~~~~~~~~~~~~~~^^^^^^^^^
-KeyboardInterrupt
+agentica c=1 rep=0: 27.0 tok/s, neighbours 1.5 cores
+llama-server c=1 rep=0: 27.0 tok/s, neighbours 1.2 cores
+llama-server c=1 rep=1: 31.8 tok/s, neighbours 0.2 cores
+agentica c=1 rep=1: 28.5 tok/s, neighbours 0.2 cores
+agentica c=1 rep=2: 27.7 tok/s, neighbours 0.3 cores
+llama-server c=1 rep=2: 30.8 tok/s, neighbours 0.3 cores
+agentica c=4 rep=0: 37.1 tok/s, neighbours 0.2 cores
+llama-server c=4 rep=0: 31.3 tok/s, neighbours 0.2 cores
+llama-server c=4 rep=1: 29.7 tok/s, neighbours 0.4 cores
+agentica c=4 rep=1: 34.7 tok/s, neighbours 0.8 cores
+agentica c=4 rep=2: 33.9 tok/s, neighbours 0.5 cores
+llama-server c=4 rep=2: 31.1 tok/s, neighbours 0.5 cores
+agentica c=16 rep=0: 34.6 tok/s, neighbours 0.2 cores
+llama-server c=16 rep=0: 22.4 tok/s, neighbours 0.5 cores
+llama-server c=16 rep=1: 37.3 tok/s, neighbours 0.2 cores
+agentica c=16 rep=1: 38.2 tok/s, neighbours 0.2 cores
+agentica c=16 rep=2: 26.5 tok/s, neighbours 0.3 cores
+llama-server c=16 rep=2: 21.3 tok/s, neighbours 1.1 cores
+| server | conc | req/s | gen tok/s | p50 s | p95 s | failed |
+|---|---|---|---|---|---|---|
+| agentica | 1 | 0.44 | 27.7 | 2.25 | 2.57 | 0 |
+| agentica | 4 | 0.54 | 34.7 | 7.40 | 7.99 | 0 |
+| agentica | 16 | 0.54 | 34.6 | 28.96 | 32.69 | 0 |
+| llama-server | 1 | 0.48 | 30.8 | 2.07 | 2.26 | 0 |
+| llama-server | 4 | 0.49 | 31.1 | 8.25 | 9.28 | 0 |
+| llama-server | 16 | 0.35 | 22.4 | 42.67 | 74.19 | 0 |
+
+| server | RSS idle MB | RSS peak MB | RSS end MB |
+|---|---|---|---|
+| agentica | 690 | 771 | 739 |
+| llama-server | 672 | 704 | 704 |
+
+agentica: 0 of 8 answers at concurrency 8 equal the ones at concurrency 1.
+llama-server: 2 of 8 answers at concurrency 8 equal the ones at concurrency 1.
+
+Greedy answers identical between servers: 8 of 8 prompts.
