@@ -112,6 +112,7 @@ export def run(model: Llama.Model, config: EngineConfig, requests: Channel[GenRe
       stats = account(config, stats, done, Time.monotonic_ns() - began)
     end
   end
+
   return ok()
 end
 
@@ -127,6 +128,7 @@ def account(config: EngineConfig, stats: Stats, done: StepResult, step_ns: Int) 
   if not config.stats or now - grown.since_ms < STATS_WINDOW_MS
     return grown
   end
+
   decode_ms = grown.decode_ns / 1_000_000
   other_ms = (grown.step_ns - grown.decode_ns) / 1_000_000
   IO.warn("stats: steps=#{grown.steps} tokens=#{grown.rows} decode_ms=#{decode_ms} agentica_ms=#{other_ms}")
@@ -141,15 +143,18 @@ def admit(engine: Engine, seqs: List[Seq], requests: Channel[GenRequest]) -> Lis
     if active.empty?
       wait = IDLE_WAIT_MS
     end
+
     case requests.recv(wait)
       ok(request) ->
         case start(engine, active, request)
           ok(seq) -> active = active.push(seq)
           error(_) -> next
         end
+
       error(_) -> break
     end
   end
+
   return active
 end
 
@@ -160,6 +165,7 @@ def start(engine: Engine, active: List[Seq], request: GenRequest) -> Result[Seq]
     refuse(request, "the prompt does not fit in a slot of #{per_seq} tokens")
     return error("refused")
   end
+
   case Llama.new_sampler(request.temperature, request.seed)
     ok(sampler) ->
       return ok(Seq(
@@ -185,6 +191,7 @@ def free_slot(active: List[Seq]) -> Int
   while taken_in?(taken, slot)
     slot += 1
   end
+
   return slot
 end
 
@@ -204,6 +211,7 @@ def step(engine: Engine, seqs: List[Seq]) -> StepResult
     seqs.each do |s| fail_seq(engine, s, "decode failed with code #{rc}") end
     return StepResult(seqs: [], rows: items.size, decode_ns: decode_ns)
   end
+
   start_list: List[Seq] = []
   kept = feeds.reduce(start_list) do |acc, f| settle(engine, acc, f) end
   return StepResult(seqs: kept, rows: items.size, decode_ns: decode_ns)
@@ -221,9 +229,11 @@ def plan(budget: Int, seqs: List[Seq]) -> List[Feed]
       if fed == seq.pending.size
         row = used - 1
       end
+
       feeds = feeds.push(Feed(seq: seq, fed: fed, row: row))
     end
   end
+
   return feeds
 end
 
@@ -239,6 +249,7 @@ def items_of(feed: Feed) -> List[Llama.BatchItem]
       wants_logits: feed.row >= 0 and i == feed.fed - 1,
     ))
   end
+
   return items
 end
 
@@ -248,20 +259,24 @@ def settle(engine: Engine, kept: List[Seq], feed: Feed) -> List[Seq]
   if feed.row < 0
     return kept.push(seq)
   end
+
   token = Llama.sample(seq.sampler, engine.ctx, feed.row)
   if Llama.eog?(engine.model, token)
     finish(engine, seq, "stop")
     return kept
   end
+
   piece = Llama.piece(engine.model, token, engine.scratch)
   if seq.request.stream
     return settle_streaming(engine, kept, seq, token, piece)
   end
+
   grown = seq.with(pending: [token], parts: seq.parts.push(piece), generated: seq.generated + 1)
   if grown.generated >= grown.limit
     finish(engine, grown, "length")
     return kept
   end
+
   return kept.push(grown)
 end
 
@@ -280,10 +295,12 @@ def settle_streaming(engine: Engine, kept: List[Seq], seq: Seq, token: Int, piec
       return kept
     end
   end
+
   if grown.generated >= grown.limit
     finish(engine, grown, "length")
     return kept
   end
+
   return kept.push(grown)
 end
 
@@ -297,6 +314,7 @@ def utf8_complete(bytes: Bytes) -> Int
     if byte < 128
       return size
     end
+
     if byte >= 192
       need = 2
       if byte >= 240
@@ -304,13 +322,17 @@ def utf8_complete(bytes: Bytes) -> Int
       elsif byte >= 224
         need = 3
       end
+
       if need > back
         return size - back
       end
+
       return size
     end
+
     back += 1
   end
+
   return size
 end
 
@@ -330,6 +352,7 @@ def finish(engine: Engine, seq: Seq, reason: String) -> Void
   if seq.request.stream
     wait = 0
   end
+
   _ = seq.request.reply.send(answer, wait)
 end
 

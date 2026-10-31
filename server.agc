@@ -76,9 +76,11 @@ def parse(args: List[String], start: Options) -> Result[Options]
     if i + 1 >= args.size
       return error("#{args[i]} needs a value")
     end
+
     options = try apply(options, args[i], args[i + 1])
     i += 2
   end
+
   return ok(options)
 end
 
@@ -96,3 +98,24 @@ def apply(options: Options, flag: String, value: String) -> Result[Options]
     _ -> return error("unknown flag #{flag}")
   end
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
