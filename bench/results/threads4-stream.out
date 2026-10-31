@@ -1,0 +1,42 @@
+agentica c=1 rep=0 try=0: 18.2 tok/s, ttft p50 0.62 s, neighbours 0.5 cores before, 0.4 during
+llama-server c=1 rep=0 try=0: 18.7 tok/s, ttft p50 0.60 s, neighbours 0.3 cores before, 0.4 during
+llama-server c=1 rep=1 try=0: 18.5 tok/s, ttft p50 0.65 s, neighbours 0.5 cores before, 0.4 during
+agentica c=1 rep=1 try=0: 18.3 tok/s, ttft p50 0.64 s, neighbours 0.3 cores before, 0.4 during
+agentica c=1 rep=2 try=0: 18.3 tok/s, ttft p50 0.61 s, neighbours 0.3 cores before, 0.4 during
+llama-server c=1 rep=2 try=0: 18.7 tok/s, ttft p50 0.61 s, neighbours 0.3 cores before, 0.4 during
+agentica c=4 rep=0 try=0: 22.7 tok/s, ttft p50 2.49 s, neighbours 0.4 cores before, 0.4 during
+llama-server c=4 rep=0 try=0: 20.6 tok/s, ttft p50 2.38 s, neighbours 0.3 cores before, 0.4 during
+llama-server c=4 rep=1 try=0: 20.6 tok/s, ttft p50 1.95 s, neighbours 0.3 cores before, 0.4 during
+agentica c=4 rep=1 try=0: 22.7 tok/s, ttft p50 2.44 s, neighbours 0.3 cores before, 0.4 during
+agentica c=4 rep=2 try=0: 19.7 tok/s, ttft p50 2.52 s, neighbours 0.3 cores before, 1.2 during
+llama-server c=4 rep=2 try=0: 14.1 tok/s, ttft p50 2.54 s, neighbours 1.2 cores before, 2.4 during
+llama-server c=4 rep=2 try=1: 19.1 tok/s, ttft p50 2.75 s, neighbours 1.3 cores before, 0.7 during
+agentica c=16 rep=0 try=0: 18.1 tok/s, ttft p50 30.87 s, neighbours 0.6 cores before, 1.3 during
+agentica c=16 rep=0 try=1: 18.8 tok/s, ttft p50 29.71 s, neighbours 1.1 cores before, 1.1 during
+llama-server c=16 rep=0 try=0: 15.6 tok/s, ttft p50 37.54 s, neighbours 1.5 cores before, 1.9 during
+llama-server c=16 rep=0 try=1: 14.8 tok/s, ttft p50 40.22 s, neighbours 1.5 cores before, 2.2 during
+llama-server c=16 rep=1 try=0: 12.5 tok/s, ttft p50 40.17 s, neighbours 0.7 cores before, 3.2 during
+llama-server c=16 rep=1 try=1: 5.7 tok/s, ttft p50 69.09 s, neighbours 1.4 cores before, 5.5 during
+agentica c=16 rep=1 try=0: 13.4 tok/s, ttft p50 37.72 s, neighbours 0.6 cores before, 2.5 during
+agentica c=16 rep=1 try=1: 9.8 tok/s, ttft p50 53.41 s, neighbours 0.6 cores before, 4.3 during
+agentica c=16 rep=2 try=0: 17.2 tok/s, ttft p50 35.19 s, neighbours 0.7 cores before, 1.6 during
+agentica c=16 rep=2 try=1: 19.0 tok/s, ttft p50 31.88 s, neighbours 0.4 cores before, 1.1 during
+llama-server c=16 rep=2 try=0: 21.4 tok/s, ttft p50 26.69 s, neighbours 0.5 cores before, 0.6 during
+| server | conc | req/s | gen tok/s | p50 s | p95 s | ttft p50 s | ttft p95 s | failed |
+|---|---|---|---|---|---|---|---|---|
+| agentica | 1 | 0.29 | 18.3 | 3.49 | 3.60 | 0.62 | 0.70 | 0 |
+| agentica | 4 | 0.35 | 22.7 | 11.29 | 11.50 | 2.49 | 2.66 | 0 |
+| agentica | 16 | 0.29 | 18.8 | 52.81 | 63.12 | 31.88 | 38.84 | 0 |
+| llama-server | 1 | 0.29 | 18.7 | 3.39 | 3.59 | 0.61 | 0.73 | 0 |
+| llama-server | 4 | 0.32 | 20.6 | 12.42 | 12.71 | 2.38 | 2.73 | 0 |
+| llama-server | 16 | 0.24 | 15.6 | 65.06 | 68.83 | 37.54 | 40.32 | 0 |
+
+| server | RSS idle MB | RSS peak MB | RSS end MB |
+|---|---|---|---|
+| agentica | 691 | 801 | 795 |
+| llama-server | 671 | 707 | 707 |
+
+agentica: 2 of 8 answers at concurrency 8 equal the ones at concurrency 1.
+llama-server: 0 of 8 answers at concurrency 8 equal the ones at concurrency 1.
+
+Greedy answers identical between servers: 8 of 8 prompts.

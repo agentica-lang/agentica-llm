@@ -3,6 +3,8 @@
 ## The struct layouts are copied from llama.h of the same tag: a wrong field list is undefined behavior, so
 ## `scripts/fetch-headers.sh` gets the header to compare with. Enums are `C.Int32`.
 
+import Numbers from "numbers"
+
 BYTES_PER_TOKEN = 4
 POINTER_BYTES = 8
 CHAT_MESSAGE_BYTES = 16
@@ -169,7 +171,7 @@ export def new_context(model: Model, n_ctx: Int, n_batch: Int, n_seq: Int, threa
   params = llama_context_default_params().with(
     n_ctx: n_ctx,
     n_batch: n_batch,
-    n_ubatch: smaller(n_batch, MAX_UBATCH),
+    n_ubatch: Numbers.smaller(n_batch, MAX_UBATCH),
     n_seq_max: n_seq,
     n_threads: threads,
     n_threads_batch: threads,
@@ -301,13 +303,6 @@ end
 ## Forgets the KV cache of one sequence, so its slot can take another request.
 export def clear_slot(ctx: Context, slot: Int) -> Void
   _ = llama_memory_seq_rm(llama_get_memory(ctx), slot, -1, -1)
-end
-
-def smaller(a: Int, b: Int) -> Int
-  if a < b
-    return a
-  end
-  return b
 end
 
 def logit_flags(items: List[BatchItem]) -> Bytes
