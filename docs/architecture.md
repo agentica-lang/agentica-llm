@@ -1,7 +1,7 @@
 # Architecture
 
 The [Bond](https://github.com/agentica-lang/bond) web framework in front of llama.cpp, called through the Agentica FFI
-(no C code). Written for Agentica 0.19.0-beta.1 and Bond 0.2.0 (the tag pinned in `agentica.toml`).
+(no C code). Written for Agentica 0.19.0-beta.2 and Bond 0.3.0 (the tag pinned in `agentica.toml`).
 
 ## How it works
 
@@ -56,7 +56,7 @@ For what this costs and where the gaps are, see [benchmark.md](benchmark.md) and
 ## Files
 
 ```text
-agentica.toml, agentica.lock   Bond pinned by tag (0.2.0); [native.llama] and [native.ggml]
+agentica.toml, agentica.lock   Bond pinned by tag (0.3.0); [native.llama] and [native.ggml]
 server.agc                     the program (flags, wiring)
 src/llama.agc                  FFI bindings and the wrapper
 src/engine.agc                 the engine task: continuous batching
