@@ -11,7 +11,7 @@ Versions: Agentica 0.19.0-beta.1, Bond 0.2.0, llama.cpp b12012, measured on 2026
 
 AMD Ryzen 5 3550H (4 cores, 8 threads, a laptop), 12 GB, Linux 6.12. **The CPU is capped at 1.4 GHz**
 (`scaling_max_freq` 1400000 of 2100000, governor `schedutil`, 8 cores) to keep the machine quiet. **Absolute numbers are
-therefore lower than at full speed** (about 18 to 23 generated tokens per second here, against 30 to 45 on an earlier,
+therefore lower than at full speed** (about 15 to 24 generated tokens per second here, against 30 to 45 on an earlier,
 uncapped run). Both servers ran back to back in the same sessions under the same cap, so **the ratios between the two
 servers are what matter**; do not compare these absolute numbers with the 0.18.0 results kept in
 `bench/results/0.18.0/` (a different machine state and different versions).
@@ -125,7 +125,9 @@ No request failed in any run.
 
 ### The serving layer alone (`GET /health`, 3000 requests, both servers pinned to CPUs 0 to 3 with `taskset`)
 
-Medians of 3 runs.
+Medians of 3 runs, every rep in [bench/results/health.json](../bench/results/health.json). Measured by hand, not by
+`run_all.py`: both servers started with `taskset -c 0-3` (4 threads, `-c 8192`, 8 slots), then `python3 bench/client.py
+--url URL --concurrency N --requests 3000 --health` for each server and concurrency, three times in turn.
 
 | server | concurrency | req/s | p50 ms | p95 ms |
 |---|---|---|---|---|
@@ -160,7 +162,7 @@ Medians of 3 runs.
   2.5 s (four prompts prefilled together and decoded among the others' steps); at concurrency 16 it is 28 to 38 s
   because 8 requests wait for a slot. That is the closed-loop test with more clients than slots, not a property of the
   streaming path.
-- **The model dominates.** 0.5B Q4 on 4 cores generates about 15 to 23 tok/s here whatever sits in front of it, and
+- **The model dominates.** 0.5B Q4 on 4 cores generates about 15 to 24 tok/s here whatever sits in front of it, and
   concurrency barely raises it: CPU decode is compute-bound, so batching gains little. The same would not hold on a
   GPU, where the serving layer's share of the step matters far more.
 - **Agentica's share of the engine step is small** (measured with `--stats on` on 0.18.0 at full speed, not rerun

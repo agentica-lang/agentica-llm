@@ -16,7 +16,7 @@ streaming bodies of `std/http`) and `Bond.json` encoded a struct twice (Bond 0.2
   200 KB of llama.cpp log lines to stderr at start, with no way to filter them. The same for `progress_callback`
   (model load progress) and `abort_callback`.
 - **`Int` has no `min`, `max` or `clamp`.** `n_batch.min(512)` is `CHECK-UNKNOWN-METHOD: Int has no method "min"`;
-  I wrote a private `smaller(a, b)` in two files.
+  `src/numbers.agc` holds a `smaller(a, b)` for the three files that need it.
 - **An entry file in a subfolder cannot import the project's `src/`.** `tools/smoke.agc` with `import Llama from
   "src/llama"` fails with `CHECK-IMPORT-IO: cannot resolve import`; imports resolve relative to the importing file's
   folder, so every runnable program has to sit at the repo root (or the files need `../`, which this form does not

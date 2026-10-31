@@ -38,13 +38,18 @@ client <-SSE- Bond (std/http) <- events: Channel[Bytes] <- pump task <- reply: C
   does not fit a slot) is still a `400` and the time to first token is real. It then starts the `pump` task and returns:
   the `Conn` is gone once the handler returns, so the task gets the channels and the ids, not the `Conn`.
 - **The pump** turns pieces into chunk events, sends them to Bond's `events` channel with a timeout, and closes it at the
-  end, which ends the HTTP body.
+  end, which ends the HTTP body. It runs with `Task.spawn_owning`, so it owns `reply` and `events`: if it crashes, both
+  close and the response ends instead of hanging. The channel holds the whole answer, so the engine's send fails only
+  when the pump closed `reply`.
 - **A client that leaves.** Bond closes `events` when the connection ends, so the pump's next `send` fails; the pump
   closes `reply`, the engine's next send for that sequence fails, and the engine frees the slot (clears its KV cells and
-  closes the sampler) instead of decoding for nobody. A client that stops reading is the same after the pump's send
-  timeout. If the pump died, the engine's send fails when the channel is full. The cost of leaving is one more token.
-- A failure after the head went out (a decode error) cannot change the status: the pump sends one `data: {"error": ...}`
-  event and ends the stream without `[DONE]`.
+  closes the sampler) instead of decoding for nobody. The cost of leaving is one more token. A client that stops
+  reading, but keeps the connection open, is noticed only when Bond's writer blocks (the pump's send then times out
+  after 10 s); the kernel's socket buffers can hold a short answer whole, so such a client can finish its answer
+  without ever being noticed. This was not measured.
+- A failure after the head went out (a decode error, or an engine that gives no piece for 60 s) cannot change the
+  status: the pump sends one `data: {"error": ...}` event and ends the stream without `[DONE]`.
+- `max_tokens` below 1 is a `400` on both paths (a stream's channel size comes from it).
 
 For what this costs and where the gaps are, see [benchmark.md](benchmark.md) and [gaps.md](gaps.md).
 
@@ -56,6 +61,7 @@ server.agc                     the program (flags, wiring)
 src/llama.agc                  FFI bindings and the wrapper
 src/engine.agc                 the engine task: continuous batching
 src/api.agc                    the Bond routes, the SSE pump
+src/numbers.agc                `smaller`, shared by the other files
 smoke.agc                      one sequence, to check the bindings
 scripts/                       fetch scripts (URL, tag and sha256 recorded in each)
 bench/client.py, run_all.py    the load client and the comparison runner

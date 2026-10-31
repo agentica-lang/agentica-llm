@@ -22,9 +22,10 @@ Needs Agentica 0.19.0-beta.1 or later; Bond 0.2.0 is pinned in `agentica.toml`.
 
 ## Benchmark
 
-On a 4-core laptop CPU (capped at 1.4 GHz) with Qwen2.5-0.5B, it is within noise of `llama-server` of the same llama.cpp
-release, streaming or not (parity, not a win): the model dominates; the time to first token is 0.6 to 0.7 s on both at
-concurrency 1. Details and the caveats in [docs/benchmark.md](docs/benchmark.md).
+On a 4-core laptop CPU (capped at 1.4 GHz) with Qwen2.5-0.5B, it is at parity with `llama-server` of the same llama.cpp
+release, streaming or not (not a win): the model dominates. Most cells are within 3 %; a few are noisy or ahead for a
+reason not found (see the notes in the doc). The time to first token is 0.6 to 0.7 s on both at concurrency 1. Details
+and the caveats in [docs/benchmark.md](docs/benchmark.md).
 
 ## Docs
 

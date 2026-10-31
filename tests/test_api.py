@@ -74,7 +74,8 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(first["choices"][0]["message"]["role"], "assistant")
         self.assertLessEqual(first["usage"]["completion_tokens"], 16)
         self.assertIn(first["choices"][0]["finish_reason"], ["stop", "length"])
-        self.assertEqual(first["usage"]["total_tokens"], first["usage"]["prompt_tokens"] + first["usage"]["completion_tokens"])
+        usage = first["usage"]
+        self.assertEqual(usage["total_tokens"], usage["prompt_tokens"] + usage["completion_tokens"])
         _, second = self.chat(max_tokens=16, temperature=0)
         self.assertEqual(first["choices"][0]["message"]["content"], second["choices"][0]["message"]["content"])
 
@@ -127,7 +128,8 @@ class ApiTest(unittest.TestCase):
         # Emoji often span several tokens: every piece must still be valid UTF-8 (the body decodes and the pieces
         # have no replacement character) and the pieces must add up to the non-streaming text.
         messages = [{"role": "user", "content": "Write 3 lines using rare emoji such as \U0001FAE0 \U0001FABF."}]
-        _, data = self.request("POST", "/v1/chat/completions", {"messages": messages, "max_tokens": 60, "temperature": 0})
+        _, data = self.request("POST", "/v1/chat/completions",
+                               {"messages": messages, "max_tokens": 60, "temperature": 0})
         _, _, body = self.stream(messages, max_tokens=60, temperature=0)
         pieces = [json.loads(e)["choices"][0]["delta"].get("content", "") for e in self.events(body)[:-1]]
         self.assertNotIn("\ufffd", "".join(pieces))
@@ -147,7 +149,9 @@ class ApiTest(unittest.TestCase):
                           "Content-Length: %d\r\n\r\n%s" % (len(body), body)).encode())
             got = b""
             while b"data: {" not in got.split(b"\r\n\r\n", 1)[-1]:
-                got += sock.recv(4096)
+                chunk = sock.recv(4096)
+                self.assertTrue(chunk, "the server closed before the first event")
+                got += chunk
             sock.close()
         started = time.time()
         status, answer = self.chat(max_tokens=8, temperature=0)
@@ -160,6 +164,10 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.request("POST", "/v1/chat/completions", {"nope": 1})[0], 400)
         long_prompt = [{"role": "user", "content": "word " * 3000}]
         self.assertEqual(self.request("POST", "/v1/chat/completions", {"messages": long_prompt})[0], 400)
+        for bad in (0, -1, -5):
+            self.assertEqual(self.chat(max_tokens=bad)[0], 400, bad)
+            self.assertEqual(self.stream(max_tokens=bad)[0], 400, bad)
+        self.assertEqual(self.request("GET", "/health")[0], 200)
 
 
 if __name__ == "__main__":

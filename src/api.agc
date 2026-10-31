@@ -4,6 +4,7 @@
 import Bond from "pkg/bond/bond"
 import Engines from "engine"
 import Llama from "llama"
+import Numbers from "numbers"
 
 DEFAULT_MAX_TOKENS = 128
 ANSWER_TIMEOUT_MS = 600_000
@@ -117,14 +118,17 @@ def chat(api: Api, conn: Bond.Conn) -> Result[Bond.Conn]
   if body.messages.empty?
     return Bond.bad_request("messages must not be empty")
   end
+  max_tokens = body.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS)
+  if max_tokens < 1
+    return Bond.bad_request("max_tokens must be at least 1")
+  end
   text = try Llama.chat_prompt(api.model, body.messages)
   prompt = try Llama.tokenize(api.model, text)
-  max_tokens = body.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS)
   stream = body.stream.unwrap_or(false)
   # A stream is a piece per token and the engine never waits, so the channel holds the whole answer.
   room = 1
   if stream
-    room = smaller(max_tokens, api.n_ctx) + 2
+    room = Numbers.smaller(max_tokens, api.n_ctx) + 2
   end
   reply: Channel[Engines.GenResult] = Channel.new(room)
   request = Engines.GenRequest(
@@ -187,7 +191,12 @@ end
 
 # Waits for the first piece, so a request the engine refuses is still a 400 (the head of a stream cannot be
 # taken back), then hands the rest to a task: the route returns and Bond sends each event as it is made.
-def stream_answer(api: Api, conn: Bond.Conn, reply: Channel[Engines.GenResult], include_usage: Bool) -> Result[Bond.Conn]
+def stream_answer(
+  api: Api,
+  conn: Bond.Conn,
+  reply: Channel[Engines.GenResult],
+  include_usage: Bool,
+) -> Result[Bond.Conn]
   case reply.recv(ANSWER_TIMEOUT_MS)
     ok(first) ->
       if first.finish_reason == "error"
@@ -203,7 +212,8 @@ def stream_answer(api: Api, conn: Bond.Conn, reply: Channel[Engines.GenResult], 
         model: api.model_name,
         include_usage: include_usage,
       )
-      Task.spawn(&pump_events, pump)
+      # Owning: the task owns `reply` and `events`, so a crash of the pump closes them and the response ends.
+      Task.spawn_owning(&pump_events, pump)
       return ok(Bond.sse(conn, events))
     error(message) ->
       reply.close
@@ -227,8 +237,7 @@ def relay(pump: Pump, first: Engines.GenResult) -> Void
   while true
     if piece.finish_reason == "error"
       # The head went out as a 200: all that is left is an error event, and no `[DONE]`.
-      failure = JSON.from({"error": {"message": piece.failure, "type": "server_error"}})
-      _ = pump.events.send(Bond.sse_event(JSON.encode(failure)), EVENT_SEND_TIMEOUT_MS)
+      send_error(pump, piece.failure)
       return
     end
     if not piece.text.empty? and not send_chunk(pump, Delta(content: JsonField.Value(piece.text)), JsonField.Null)
@@ -239,7 +248,10 @@ def relay(pump: Pump, first: Engines.GenResult) -> Void
     end
     case pump.reply.recv(PIECE_WAIT_MS)
       ok(next_piece) -> piece = next_piece
-      error(_) -> return
+      error(_) ->
+        # The engine stalled (or was cancelled): say so, since the head already went out as a 200.
+        send_error(pump, "the engine did not answer")
+        return
     end
   end
   if not send_chunk(pump, Delta(), JsonField.Value(piece.finish_reason))
@@ -249,6 +261,11 @@ def relay(pump: Pump, first: Engines.GenResult) -> Void
     return
   end
   _ = pump.events.send(Bond.sse_event("[DONE]"), EVENT_SEND_TIMEOUT_MS)
+end
+
+def send_error(pump: Pump, message: String) -> Void
+  failure = JSON.from({"error": {"message": message, "type": "server_error"}})
+  _ = pump.events.send(Bond.sse_event(JSON.encode(failure)), EVENT_SEND_TIMEOUT_MS)
 end
 
 def send_chunk(pump: Pump, delta: Delta, finish: JsonField[String]) -> Bool
@@ -278,11 +295,4 @@ def send_usage(pump: Pump, last: Engines.GenResult) -> Bool
     usage: JsonField.Value(usage),
   )
   return pump.events.send(Bond.sse_event(JSON.encode(chunk)), EVENT_SEND_TIMEOUT_MS).ok?
-end
-
-def smaller(a: Int, b: Int) -> Int
-  if a < b
-    return a
-  end
-  return b
 end

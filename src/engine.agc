@@ -10,6 +10,7 @@
 ## closed the channel because its client left, or fell behind) ends the sequence and frees its slot.
 
 import Llama from "llama"
+import Numbers from "numbers"
 
 IDLE_WAIT_MS = 100
 STATS_WINDOW_MS = 5000
@@ -165,7 +166,7 @@ def start(engine: Engine, active: List[Seq], request: GenRequest) -> Result[Seq]
         slot: free_slot(active),
         request: request,
         sampler: sampler,
-        limit: smaller(request.max_tokens, per_seq - request.prompt.size),
+        limit: Numbers.smaller(request.max_tokens, per_seq - request.prompt.size),
         pending: request.prompt,
         pos: 0,
         parts: [],
@@ -213,7 +214,7 @@ def plan(budget: Int, seqs: List[Seq]) -> List[Feed]
   feeds: List[Feed] = []
   used = 0
   for seq in seqs
-    fed = smaller(seq.pending.size, budget - used)
+    fed = Numbers.smaller(seq.pending.size, budget - used)
     if fed > 0
       used += fed
       row = -1
@@ -314,8 +315,9 @@ def utf8_complete(bytes: Bytes) -> Int
 end
 
 def finish(engine: Engine, seq: Seq, reason: String) -> Void
-  # Bytes that are not UTF-8 (a character cut by the limit) fail the conversion: keep the readable part.
-  text = String.from_bytes(Bytes.concat(seq.parts)).unwrap_or("")
+  # A character cut by the limit is dropped, as in a stream (`utf8_complete`), so both agree.
+  whole = Bytes.concat(seq.parts)
+  text = String.from_bytes(whole.take(utf8_complete(whole))).unwrap_or("")
   release(engine, seq)
   answer = GenResult(
     text: text,
@@ -344,11 +346,4 @@ end
 def refuse(request: GenRequest, message: String) -> Void
   answer = GenResult(text: "", prompt_tokens: 0, completion_tokens: 0, finish_reason: "error", failure: message)
   _ = request.reply.send(answer, 0)
-end
-
-def smaller(a: Int, b: Int) -> Int
-  if a < b
-    return a
-  end
-  return b
 end
