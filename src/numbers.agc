@@ -5,5 +5,6 @@ export def smaller(a: Int, b: Int) -> Int
   if a < b
     return a
   end
+
   return b
 end

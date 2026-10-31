@@ -118,10 +118,12 @@ def chat(api: Api, conn: Bond.Conn) -> Result[Bond.Conn]
   if body.messages.empty?
     return Bond.bad_request("messages must not be empty")
   end
+
   max_tokens = body.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS)
   if max_tokens < 1
     return Bond.bad_request("max_tokens must be at least 1")
   end
+
   text = try Llama.chat_prompt(api.model, body.messages)
   prompt = try Llama.tokenize(api.model, text)
   stream = body.stream.unwrap_or(false)
@@ -130,6 +132,7 @@ def chat(api: Api, conn: Bond.Conn) -> Result[Bond.Conn]
   if stream
     room = Numbers.smaller(max_tokens, api.n_ctx) + 2
   end
+
   reply: Channel[Engines.GenResult] = Channel.new(room)
   request = Engines.GenRequest(
     prompt: prompt,
@@ -144,6 +147,7 @@ def chat(api: Api, conn: Bond.Conn) -> Result[Bond.Conn]
       if stream
         return stream_answer(api, conn, reply, wants_usage(body))
       end
+
       return answer(api, conn, reply)
     error(message) -> return ok(Bond.halt(conn, 503, message))
   end
@@ -162,6 +166,7 @@ def answer(api: Api, conn: Bond.Conn, reply: Channel[Engines.GenResult]) -> Resu
       if result.finish_reason == "error"
         return ok(Bond.halt(conn, 400, result.failure))
       end
+
       return ok(respond(api, conn, result))
     error(message) -> return ok(Bond.halt(conn, 504, message))
   end
@@ -202,6 +207,7 @@ def stream_answer(
       if first.finish_reason == "error"
         return ok(Bond.halt(conn, 400, first.failure))
       end
+
       events: Channel[Bytes] = Channel.new(EVENT_BUFFER)
       pump = Pump(
         reply: reply,
@@ -228,6 +234,7 @@ def pump_events(pump: Pump) -> Void
   if send_chunk(pump, Delta(role: JsonField.Value("assistant"), content: JsonField.Value("")), JsonField.Null)
     relay(pump, pump.first)
   end
+
   pump.reply.close
   pump.events.close
 end
@@ -240,12 +247,15 @@ def relay(pump: Pump, first: Engines.GenResult) -> Void
       send_error(pump, piece.failure)
       return
     end
+
     if not piece.text.empty? and not send_chunk(pump, Delta(content: JsonField.Value(piece.text)), JsonField.Null)
       return
     end
+
     if not piece.finish_reason.empty?
       break
     end
+
     case pump.reply.recv(PIECE_WAIT_MS)
       ok(next_piece) -> piece = next_piece
       error(_) ->
@@ -254,14 +264,19 @@ def relay(pump: Pump, first: Engines.GenResult) -> Void
         return
     end
   end
+
   if not send_chunk(pump, Delta(), JsonField.Value(piece.finish_reason))
     return
   end
+
   if pump.include_usage and not send_usage(pump, piece)
+
     return
   end
+
   _ = pump.events.send(Bond.sse_event("[DONE]"), EVENT_SEND_TIMEOUT_MS)
 end
+
 
 def send_error(pump: Pump, message: String) -> Void
   failure = JSON.from({"error": {"message": message, "type": "server_error"}})
@@ -280,10 +295,12 @@ def send_chunk(pump: Pump, delta: Delta, finish: JsonField[String]) -> Bool
 end
 
 # The usage chunk of `stream_options.include_usage`: no choices, only the counts.
+
 def send_usage(pump: Pump, last: Engines.GenResult) -> Bool
   usage = Usage(
     prompt_tokens: last.prompt_tokens,
     completion_tokens: last.completion_tokens,
+
     total_tokens: last.prompt_tokens + last.completion_tokens,
   )
   chunk = Chunk(
@@ -296,3 +313,9 @@ def send_usage(pump: Pump, last: Engines.GenResult) -> Bool
   )
   return pump.events.send(Bond.sse_event(JSON.encode(chunk)), EVENT_SEND_TIMEOUT_MS).ok?
 end
+
+
+
+
+
+

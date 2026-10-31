@@ -195,6 +195,7 @@ export def chat_prompt(model: Model, messages: List[ChatMessage]) -> Result[Stri
     Native.put_pointer(chat, i * CHAT_MESSAGE_BYTES, strings[i][0])
     Native.put_pointer(chat, i * CHAT_MESSAGE_BYTES + POINTER_BYTES, strings[i][1])
   end
+
   tmpl = llama_model_chat_template(model, Native.null())
   size = total * 2 + 256 + count * 32
   buf = Native.memory_pointer(size)
@@ -206,18 +207,22 @@ export def chat_prompt(model: Model, messages: List[ChatMessage]) -> Result[Stri
     buf = Native.memory_pointer(written)
     written = llama_chat_apply_template(tmpl, chat, count, true, buf, written)
   end
+
   if written >= 0
     text = Native.get_string(buf, 0, written)
   end
+
   Native.free(buf)
   Native.free(chat)
   for pair in strings
     Native.free(pair[0])
     Native.free(pair[1])
   end
+
   if written < 0
     return error("the chat template does not apply to these messages")
   end
+
   return ok(text)
 end
 
@@ -232,11 +237,13 @@ export def tokenize(model: Model, text: String) -> Result[List[Int]]
   if count >= 0
     tokens = Native.get_array_of_int32(out, 0, count)
   end
+
   Native.free(out)
   Native.free(input)
   if count < 0
     return error("cannot tokenize the prompt")
   end
+
   return ok(tokens)
 end
 
@@ -251,6 +258,7 @@ export def piece(model: Model, token: Int, scratch: C.Pointer) -> Bytes
   if n <= 0
     return "".bytes
   end
+
   return Native.get_bytes(scratch, 0, n)
 end
 
@@ -265,6 +273,7 @@ export def new_sampler(temperature: Float, seed: Int) -> Result[Sampler]
         llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature))
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(seed))
       end
+
       return ok(sampler)
     error(_) -> return error("cannot create a sampler")
   end
@@ -292,6 +301,7 @@ export def fill(buffer: BatchBuffer, items: List[BatchItem]) -> Batch
     cell = Native.get_pointer(b.seq_id, k * POINTER_BYTES)
     Native.put_int32(cell, 0, items[k].slot)
   end
+
   return b.with(n_tokens: n)
 end
 
@@ -314,6 +324,7 @@ def flag(on: Bool) -> Int
   if on
     return 1
   end
+
   return 0
 end
 
