@@ -16,8 +16,8 @@ agentica install
 - [scripts/fetch-headers.sh](../scripts/fetch-headers.sh): `llama.h` of the same tag, only to compare the struct
   layouts in `src/llama.agc`. The release archive ships no headers, so the struct layouts were copied from `llama.h` at
   tag `b12012`; a wrong field list is undefined behavior, so re-check them if you change the tag.
-- `agentica install`: Bond 0.3.0 (git dependency, pinned by tag in `agentica.toml` and by commit and hash in
-  `agentica.lock`). It needs Agentica 0.19.0-beta.2 or later.
+- `agentica install`: Bond (git dependency, pinned by commit in `agentica.toml` and by commit and hash in
+  `agentica.lock`). It needs Agentica 0.19.0-beta.3 or later.
 
 Nothing under `deps/` is committed.
 

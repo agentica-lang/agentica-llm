@@ -56,7 +56,7 @@ def serve(args: List[String]) -> Result[Void]
     Api.app(api),
     options.host,
     options.port,
-    HTTP.server_options().with(max_connections: 1024, max_body_bytes: 4_194_304),
+    HttpServerOptions(max_connections: 1024, max_body_bytes: 4_194_304),
   )
   puts("listening on #{options.host}:#{Bond.local_port(server)}")
   IO.flush()
