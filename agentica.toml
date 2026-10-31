@@ -1,7 +1,6 @@
 name = "agentica-llm"
 
-# Needs Agentica 0.19.0-beta.3 or later (`HttpServerOptions` has field defaults). Bond is pinned to a commit of its
-# main branch, the first one that builds on beta.3; move to its next tag once it is out.
+# Needs Agentica 0.19.0-beta.3 or later (Bond 0.4.0 does, for `HttpServerOptions` with field defaults).
 
 # Prebuilt llama.cpp release (scripts/fetch-llama.sh). libllama.so finds
 # libggml.so next to itself through RUNPATH=$ORIGIN.
@@ -12,4 +11,4 @@ linux = { file = "native/linux/libllama.so.0" }
 linux = { file = "native/linux/libggml.so.0" }
 
 [dependencies]
-bond = { git = "https://github.com/agentica-lang/bond", ref = "34da945620d3a3c9ff4c9d77377ce9c52fb06175" }
+bond = { git = "https://github.com/agentica-lang/bond", tag = "0.4.0" }
